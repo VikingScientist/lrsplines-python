@@ -49,6 +49,7 @@ cdef extern from 'LRSpline/Element.h' namespace 'LR':
         double getParmin(int)
         double getParmax(int)
         int nBasisFunctions()
+        int order(int)
         HashSet_iterator[Basisfunction_*] supportBegin()
         HashSet_iterator[Basisfunction_*] supportEnd()
 
@@ -58,16 +59,16 @@ cdef extern from 'LRSpline/Meshline.h' namespace 'LR':
         double const_par_
         double start_
         double stop_
-        int multiplicity_
+        int continuity_
 
 cdef extern from 'LRSpline/MeshRectangle.h' namespace 'LR':
     cdef cppclass MeshRectangle_ 'LR::MeshRectangle':
-        MeshRectangle_(double u0, double v0, double w0, double u1, double v1, double w1, int multiplicity) except +
+        MeshRectangle_(double u0, double v0, double w0, double u1, double v1, double w1, int continuity) except +
         int constDirection()
         double constParameter()
         vector[double] start_
         vector[double] stop_
-        int multiplicity_
+        int continuity_
         MeshRectangle_* copy()
 
 cdef extern from 'LRSpline/LRSpline.h':
@@ -92,7 +93,8 @@ cdef extern from 'LRSpline/LRSpline.h' namespace 'LR':
         int nElements()
         double startparam(int)
         double endparam(int)
-        int order(int)
+        int min_order(int)
+        int max_order(int)
         void generateIDs()
         void getEdgeFunctions(vector[Basisfunction_*]& edgeFunctions, parameterEdge_ edge, int depth) const
         void getEdgeElements(vector[Element_*]& edgeElements, parameterEdge_ edge) const
@@ -111,7 +113,7 @@ cdef extern from 'LRSpline/LRSpline.h' namespace 'LR':
         void refineByDimensionIncrease(const vector[double]& error, double beta)
         void setRefStrat(refinementStrategy_ strat)
         void setRefSymmetry(int symmetry)
-        void setRefMultiplicity(int mult)
+        void setRefContinuity(int mult)
         void setMaxTjoints(int n)
         void setCloseGaps(bool doClose)
         void setMaxAspectRatio(double r, bool aposterioriFix)
@@ -131,8 +133,8 @@ cdef extern from 'LRSpline/LRSplineSurface.h' namespace 'LR':
         void point(vector[vector[double]]& pts, double u, double v, int derivs, bool u_from_right, bool v_from_right, int iEl) const
         void getGlobalKnotVector(vector[double]& knot_u, vector[double]& knot_v) const
         void getGlobalUniqueKnotVector(vector[double]& knot_u, vector[double]& knot_v) const
-        Meshline_* insert_const_u_edge(double u, double start_v, double stop_v, int multiplicity)
-        Meshline_* insert_const_v_edge(double v, double start_u, double stop_u, int multiplicity)
+        Meshline_* insert_const_u_edge(double u, double start_v, double stop_v, int continuity)
+        Meshline_* insert_const_v_edge(double v, double start_u, double stop_u, int continuity)
         void writePostscriptElements(ostream, int, int, bool, vector[int]*) const
         void writePostscriptMesh(ostream, bool, vector[int]*) const
         void writePostscriptMeshWithControlPoints(ostream, int, int) const
@@ -286,8 +288,8 @@ cdef class Meshline:
         return self.w.stop_
 
     @property
-    def multiplicity_(self):
-        return self.w.multiplicity_
+    def continuity_(self):
+        return self.w.continuity_
 
 
 cdef class MeshRectangle:
@@ -297,8 +299,8 @@ cdef class MeshRectangle:
 
     def __cinit__(self, *args):
         if len(args) >= 6:
-            multiplicity = 1 if len(args) < 7 else args[6]
-            self.w = new MeshRectangle_(args[0], args[1], args[2], args[3], args[4], args[5], multiplicity)
+            continuity = 0 if len(args) < 7 else args[6]
+            self.w = new MeshRectangle_(args[0], args[1], args[2], args[3], args[4], args[5], continuity)
             self.owned = True
         else:
             assert len(args) == 0
@@ -330,11 +332,11 @@ cdef class MeshRectangle:
         return np.array(self.w.stop_)
 
     @property
-    def multiplicity_(self):
-        return self.w.multiplicity_
+    def continuity_(self):
+        return self.w.continuity_
 
     def copy(self):
-        return MeshRectangle(*self.start_, *self.stop_, self.multiplicity_)
+        return MeshRectangle(*self.start_, *self.stop_, self.continuity_)
 
 
 cdef class parameterEdge:
@@ -381,8 +383,11 @@ cdef class LRSplineObject:
     def endparam(self, int i):
         return self.w.endparam(i)
 
-    def order(self, int i):
-        return self.w.order(i)
+    def min_order(self, int i):
+        return self.w.min_order(i)
+
+    def max_order(self, int i):
+        return self.w.max_order(i)
 
     def elementIter(self):
         cdef vector[Element_*].iterator it = self.w.elementBegin()
@@ -465,8 +470,8 @@ cdef class LRSplineObject:
     def setRefSymmetry(self, int symmetry):
         self.w.setRefSymmetry(symmetry)
 
-    def setRefMultiplicity(self, int mult):
-        self.w.setRefMultiplicity(mult)
+    def setRefContinuity(self, int mult):
+        self.w.setRefContinuity(mult)
 
     def setMaxTjoints(self, int n):
         self.w.setMaxTjoints(n)
@@ -594,11 +599,11 @@ cdef class LRSurface(LRSplineObject):
         ml.w = (<LRSplineSurface_*> self.w).getMeshline(i)
         return ml
 
-    def insert_const_u_edge(self, double u, double start_v, double stop_v, int multiplicity=1):
-        (<LRSplineSurface_*> self.w).insert_const_u_edge(u, start_v, stop_v, multiplicity)
+    def insert_const_u_edge(self, double u, double start_v, double stop_v, int continutiy=0):
+        (<LRSplineSurface_*> self.w).insert_const_u_edge(u, start_v, stop_v, continutiy)
 
-    def insert_const_v_edge(self, double v, double start_u, double stop_u, int multiplicity=1):
-        (<LRSplineSurface_*> self.w).insert_const_v_edge(v, start_u, stop_u, multiplicity)
+    def insert_const_v_edge(self, double v, double start_u, double stop_u, int continutiy=0):
+        (<LRSplineSurface_*> self.w).insert_const_v_edge(v, start_u, stop_u, continutiy)
 
     def getGlobalUniqueKnotVector(self):
         cdef vector[double] ktsu
@@ -608,8 +613,9 @@ cdef class LRSurface(LRSplineObject):
 
     def getBezierExtraction(self, iEl=-1):
         cdef vector[double] result
-        width  = self.w.order(0) * self.w.order(1)
-        height = self.w.getElement(iEl).nBasisFunctions()
+        element= self.w.getElement(iEl)
+        width  = element.order(0) * element.order(1)
+        height = element.nBasisFunctions()
         (<LRSplineSurface_*> self.w).getBezierExtraction(iEl, result)
         return np.reshape(result, (height, width), order='F')
 
@@ -738,8 +744,9 @@ cdef class LRVolume(LRSplineObject):
 
     def getBezierExtraction(self, iEl=-1):
         cdef vector[double] result
-        width  = self.w.order(0) * self.w.order(1) * self.w.order(2)
-        height = self.w.getElement(iEl).nBasisFunctions()
+        element= self.w.getElement(iEl)
+        width  = element.order(0) * element.order(1) * element.order(2)
+        height = element.nBasisFunctions()
         (<LRSplineVolume_*> self.w).getBezierExtraction(iEl, result)
         return np.reshape(result, (height, width))
 

@@ -65,7 +65,7 @@ cdef extern from 'LRSpline/Meshline.h' namespace 'LR':
         double const_par_
         double start_
         double stop_
-        int multiplicity_
+        int continuity_
 
 cdef extern from 'LRSpline/LRSpline.h' namespace 'LR':
     cdef enum parameterEdge:
@@ -82,7 +82,8 @@ cdef extern from 'LRSpline/LRSpline.h' namespace 'LR':
         int nBasisFunctions()
         double startparam(int)
         double endparam(int)
-        int order(int)
+        int min_order(int)
+        int max_order(int)
         void generateIDs()
         void getEdgeFunctions(vector[Basisfunction_*]& edgeFunctions, parameterEdge edge, int depth)
         vector[Element_*].iterator elementBegin()
@@ -103,8 +104,8 @@ cdef extern from 'LRSpline/LRSplineSurface.h' namespace 'LR':
         void point(vector[double]& pt, double u, double v, int iEl) const
         void point(vector[vector[double]]& pts, double u, double v, int derivs, int iEl) const
         void getGlobalUniqueKnotVector(vector[double]& knot_u, vector[double]& knot_v) const
-        Meshline_* insert_const_u_edge(double u, double start_v, double stop_v, int multiplicity)
-        Meshline_* insert_const_v_edge(double v, double start_u, double stop_u, int multiplicity)
+        Meshline_* insert_const_u_edge(double u, double start_v, double stop_v, int continuity)
+        Meshline_* insert_const_v_edge(double v, double start_u, double stop_u, int continuity)
         void writePostscriptElements(ostream, int, int, bool, vector[int]*) const
         void writePostscriptMesh(ostream, bool, vector[int]*) const
         void writePostscriptMeshWithControlPoints(ostream, int, int) const
@@ -195,8 +196,8 @@ cdef class Meshline:
         return self.ml.stop_
 
     @property
-    def multiplicity(self):
-        return self.ml.multiplicity_
+    def continuity(self):
+        return self.ml.continuity_
 
 
 cdef class ParameterEdge:
@@ -250,11 +251,17 @@ cdef class LRSplineObject:
         direction = check_direction(direction, self.pardim)
         return self.lr.endparam(direction)
 
-    def order(self, direction=None):
+    def min_order(self, direction=None):
         if direction is None:
-            return tuple(self.lr.order(i) for i in range(self.pardim))
+            return tuple(self.lr.min_order(i) for i in range(self.pardim))
         direction = check_direction(direction, self.pardim)
-        return self.lr.order(direction)
+        return self.lr.min_order(direction)
+
+    def max_order(self, direction=None):
+        if direction is None:
+            return tuple(self.lr.max_order(i) for i in range(self.pardim))
+        direction = check_direction(direction, self.pardim)
+        return self.lr.max_order(direction)
 
     def elements(self):
         cdef vector[Element_*].iterator it = self.lr.elementBegin()
@@ -383,10 +390,10 @@ cdef class LRSurface(LRSplineObject):
             yield ml
             preinc(it)
 
-    def insert_const_u_edge(self, double u, double start_v, double stop_v, int multiplicity=1):
+    def insert_const_u_edge(self, double u, double start_v, double stop_v, int continuity=0):
         cdef LRSplineSurface_* lr = <LRSplineSurface_*> self.lr
-        lr.insert_const_u_edge(u, start_v, stop_v, multiplicity)
+        lr.insert_const_u_edge(u, start_v, stop_v, continuity)
 
-    def insert_const_v_edge(self, double v, double start_u, double stop_u, int multiplicity=1):
+    def insert_const_v_edge(self, double v, double start_u, double stop_u, int continuity=0):
         cdef LRSplineSurface_* lr = <LRSplineSurface_*> self.lr
-        lr.insert_const_v_edge(v, start_u, stop_u, multiplicity)
+        lr.insert_const_v_edge(v, start_u, stop_u, continuity)

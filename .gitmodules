@@ -1,3 +1,4 @@
 [submodule "submodules/LRSplines"]
 	path = submodules/LRSplines
-	url = https://github.com/TheBB/LRsplines
+	url = https://github.com/vikingscientist/LRsplines
+	branch = local-pref
